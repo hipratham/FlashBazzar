@@ -5,11 +5,11 @@ package main
  func main() {
  router := gin.Default()
 
- router.GET("/hello", func(c *gin.Context) {
- c.JSON(200, gin.H{
- "message": "Hello, world!",
+ router.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "Hello, world!",
  })
  })
 
- router.Run(":8080")
+	router.Run(":9090")
  }
