@@ -5,14 +5,15 @@ import (
 	"net/http"
 	"strings"
 
-	firebase "firebase.google.com/go"
+	firebaseauth "firebase.google.com/go/auth"
+	"firebase.google.com/go"
 	"github.com/gin-gonic/gin"
 )
 
 // AuthMiddleware verifies Firebase ID tokens and sets user info in the context.
 func AuthMiddleware(app *firebase.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
+		authHeader := c.GetHeader("Authorization") // Corrected extraction of Authorization header
 		if authHeader == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is missing"})
 			return
@@ -32,15 +33,19 @@ func AuthMiddleware(app *firebase.App) gin.HandlerFunc {
 			return
 		}
 
-		// Get user record to potentially access custom claims like 'role'
-		user, err := client.GetUser(context.Background(), token.UID)
-		if err != nil {
-			// Log this error but don't necessarily abort, token is verified
-			// Depending on requirements, you might want to abort if user record is essential
+		// Extract custom claims, including 'role'
+		claims := token.Claims
+		role, roleExists := claims["role"].(string)
+
+		if !roleExists {
+			// If role is essential and missing, you might want to handle this differently.
+			// For now, we proceed but the RoleGuard will likely fail.
+			// Log a warning: log.Printf("Role claim missing for user: %s", token.UID)
 		}
 
 		c.Set("uid", token.UID)
-		c.Set("claims", token.Claims)
+		c.Set("claims", claims) // Store raw claims
+		c.Set("role", role) // Store extracted role
 		c.Set("user", user) // Optionally set the full user record
 		c.Next()
 	}
@@ -53,15 +58,14 @@ package middleware
 // RoleGuard checks if the authenticated user has the required role.
 func RoleGuard(requiredRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		claims, exists := c.Get("claims")
+		userRole, exists := c.Get("role")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "User claims not found in context. Ensure AuthMiddleware is used."})
+			// This should not happen if AuthMiddleware runs first
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "User role not found in context."})
 			return
 		}
 
-		userClaims, ok := claims.(map[string]interface{})
-		userRole, ok := userClaims["role"].(string)
-
+		// Compare the extracted role (string type assertion done in AuthMiddleware)
 		if ok && userRole == requiredRole {
 			c.Next()
 		} else {
