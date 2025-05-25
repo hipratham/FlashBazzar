@@ -6,8 +6,8 @@ import (
 
 	firebase "firebase.google.com/go"
 	"firebase.google.com/go/firestore"
-	"flashbazaar/middleware"
 	"flashbazaar/handlers" // Import the handlers package
+	"flashbazaar/middleware"
 	"github.com/gin-gonic/gin"
 	"google.golang.org/api/option"
 )
@@ -32,11 +32,11 @@ var firestoreClient *firestore.Client
 	defer firestoreClient.Close()
 
 	// Initialize Gin router
- router := gin.Default()
+	router := gin.Default()
 
 	router.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"message": "Hello, world!",
+			"message": "Hello, world!", // This was the original hello world, can be updated for hosting
  })
  })
 
@@ -59,5 +59,16 @@ var firestoreClient *firestore.Client
 		})
 	}
 
+	// Vendor routes requiring authentication and vendor role
+	vendorRoutes := router.Group("/vendor")
+	vendorRoutes.Use(middleware.AuthMiddleware, middleware.RoleGuard("vendor"))
+	{
+		vendorRoutes.POST("/deal", handlers.CreateDealHandler)
+		vendorRoutes.GET("/deal/:dealID", handlers.GetDealHandler)
+		vendorRoutes.PUT("/deal/:dealID", handlers.UpdateDealHandler)
+		vendorRoutes.DELETE("/deal/:dealID", handlers.DeleteDealHandler)
+	}
+
+	router.GET("/deal/today", handlers.GetTodayDealHandler)
 	router.Run(":9090")
  }
