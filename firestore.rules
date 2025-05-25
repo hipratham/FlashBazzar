@@ -1,0 +1,49 @@
+firestore
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allow authenticated users to read their own profile
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Add write rules as needed for profile updates, with validation
+      // allow write: if request.auth != null && request.auth.uid == userId && ...
+    }
+
+    // Vendor rules: read access for all, write/update/delete only for approved vendors on their own document
+    match /vendors/{vendorId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == resource.data.uid && resource.data.approved == true;
+    }
+
+    // Deal rules: read access for all, write/update/delete only for approved vendors on their own deals
+    match /deals/{dealId} {
+      allow read: if true;
+      allow write: if request.auth != null && get(/databases/$(database)/documents/vendors/$(resource.data.vendorId)).data.uid == request.auth.uid && get(/databases/$(database)/documents/vendors/$(resource.data.vendorId)).data.approved == true;
+    }
+
+    // Order rules: read access only for the user who placed the order
+    match /orders/{orderId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      // Add create rule, with validation
+      // allow create: if request.auth != null && ...
+    }
+
+    // Review rules: read access for all, create/update/delete only for the user who placed the associated order
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow write: if request.auth != null && get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.uid == request.auth.uid;
+    }
+
+    // Subscription rules: read/write access only for the authenticated user
+    match /subscriptions/{subscriptionId} {
+       allow read, write: if request.auth != null && request.auth.uid == resource.data.uid;
+    }
+
+    // Allow any authenticated user to create a user document for themselves
+    match /users/{userId} {
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
+
+  }
+}
